@@ -98,7 +98,8 @@ python scripts/zh-lint.py --selftest
 
 本文件自检不会全绿:规则表里的反例在触发规则本身。反例列是流水句,第 11 条规则自己就含分号,
 套话表引用了套话词。正文是干净的。读作例子,不读作缺陷。
-当前版本实测 hard 13 / advisory 3,跑 `--baseline 13` 可让自检通过。
+当前版本实测 hard 13 / advisory 52,跑 `--baseline 13` 可让自检通过。
+(advisory 数偏高,是因为本文件自身通篇用半角逗号——`ascii-punct` 逐行点了出来。)
 
 ## 流程
 

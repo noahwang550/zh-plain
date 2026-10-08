@@ -70,11 +70,16 @@ python scripts/zh-lint.py --disable semicolon 文档.md
 python scripts/zh-lint.py --selftest
 ```
 
-Ten structural checks, pure stdlib, no dependencies: clause-comma run-ons, long enumerations,
+Eleven structural checks, pure stdlib, no dependencies: clause-comma run-ons, long enumerations,
 over-long sentences, term rotation, hype filler, empty verbs, 「的」-chains, semicolons,
-passive markers, mixed full/half-width punctuation. `--mode voice` turns off the sentence-length
+passive markers, mixed full/half-width punctuation, and ASCII punctuation inside Chinese prose.
+`--mode voice` turns off the sentence-length
 and comma-run rules (prose wants rhythm and parataxis is legal there) and downgrades semicolons
 to advisory.
+
+The last two are a pair, split by what they can see: `punct-mix` only fires when both systems
+appear in one document, so a Chinese document written entirely with ASCII commas and no
+full-width punctuation at all used to pass silently. `ascii-punct` catches that case, per line.
 
 **It checks structural patterns only.** It does not compare an original against a rewrite, does
 not verify that meaning survived, and does not judge whether a rewrite is better. Zero findings

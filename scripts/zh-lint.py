@@ -176,6 +176,27 @@ def punct_mix(text):
     return [("punct-mix", "全角与半角标点混用。同一文档统一一种体系。", "、".join(mixed))]
 
 
+# 中文正文里本该全角却写了半角的标点。
+# 与 punct-mix 分工:一行内全角半角并存的归 punct-mix;整篇半角、一个全角都没写的归这里——
+# 否则那样的文档零告警通过(实测过:一段中文 18 个半角标点、0 个全角,原先全静默)。
+# ponytail: 只查逗号和分号。冒号在路径、URL、key: value、时间 3:00 里都合法,
+#   误报面太大,真需要再按「冒号后不跟 / 或 \」加进来。括号同理(markdown 链接)。
+ASCII_PROSE = ((",", "，", r"(?<!\d),(?!\d)"), (";", "；", r";"))
+
+
+def ascii_punct(text):
+    """逐行查。千分位(1,234)不算标点。"""
+    hits = []
+    for lineno, line in enumerate(text.splitlines(), 1):
+        if not re.search(f"[{CJK}]", line):
+            continue
+        found = [f"{half}(应为 {full})" for half, full, pat in ASCII_PROSE
+                 if full not in line and re.search(pat, line)]
+        if found:
+            hits.append((lineno, "、".join(found)))
+    return hits
+
+
 # --- 主流程 --------------------------------------------------------------
 def lint(text, filename, mode, disabled):
     text = strip_code(text)
@@ -201,6 +222,10 @@ def lint(text, filename, mode, disabled):
             add(lineno, name, msg, detail, "hard")
     for name, msg, detail in punct_mix(text):
         add(1, name, msg, detail, "advisory")
+    for lineno, detail in ascii_punct(text):
+        add(lineno, "ascii-punct",
+            "中文正文里的半角逗号/分号。统一用全角——顿号全角、逗号半角是常见混法。",
+            detail, "advisory")
     return findings
 
 
@@ -240,8 +265,9 @@ def selftest():
             print(f"FAIL 期望 {expect},实得 {got}  ← {text[:30]}")
             ok = False
     # 情态永不报:这是内容,不是文风。改了它等于改了断言。
-    for text in ("请求可能已失败。", "大概率是残留文件。", "该值约 3.5GB,仅作估算。",
-                 "此行为未实测,需确认。"):
+    # 夹具必须写成规范全角——半角逗号会招来 ascii-punct,让这条断言假红(踩过一次)。
+    for text in ("请求可能已失败。", "大概率是残留文件。", "该值约 3.5GB，仅作估算。",
+                 "此行为未实测，需确认。"):
         got = lint(text, "<selftest>", "interface", set())
         if got:
             print(f"FAIL 情态被误报: {text}  ← {[f['rule'] for f in got]}")
@@ -263,6 +289,16 @@ def selftest():
     if lint("进行验证。", "<selftest>", "interface", {"empty-verb"}):
         print("FAIL --disable 未生效")
         ok = False
+    # 整篇半角的中文正文也要报:punct-mix 只在全角半角并存时才开口
+    if "ascii-punct" not in {f["rule"] for f in lint("扫描器删除了 3 个文件,回收站未清空。",
+                                                    "<selftest>", "interface", set())}:
+        print("FAIL 整篇半角的中文正文未报 ascii-punct")
+        ok = False
+    # 全角正文不该报;千分位逗号也不是标点
+    for clean in ("扫描器删除了 3 个文件，回收站未清空。", "共 1,234 个文件。"):
+        if "ascii-punct" in {f["rule"] for f in lint(clean, "<selftest>", "interface", set())}:
+            print(f"FAIL 误报 ascii-punct: {clean}")
+            ok = False
     print("selftest 全绿" if ok else "selftest 有失败项")
     return 0 if ok else 1
 
